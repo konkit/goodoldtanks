@@ -8,11 +8,13 @@ import org.slf4j.LoggerFactory;
 
 import com.getbase.hackkrk.tanks.api.Command;
 import com.getbase.hackkrk.tanks.api.GameSetup;
+import com.getbase.hackkrk.tanks.api.Outcome;
 import com.getbase.hackkrk.tanks.api.Tank;
 import com.getbase.hackkrk.tanks.api.TanksClient;
 import com.getbase.hackkrk.tanks.api.TurnResult;
 
 public class NaiveBot {
+	private static final String TRIPLEKILL = "triplekill";
 	private static final Logger log = LoggerFactory.getLogger(NaiveBot.class);
 	private Random rand = ThreadLocalRandom.current();
 
@@ -26,9 +28,11 @@ public class NaiveBot {
 		if ("master".equals(game)) {
 			client = new TanksClient("http://10.12.202.141:9999", "master",
 					"ClementLimeGreenStinkbugGiraffe");
+			System.out.println("master");
 		} else {
 			client = new TanksClient("http://10.12.202.144:9999", "sandbox-3",
 					"ClementLimeGreenStinkbugGiraffe");
+			System.out.println("sandbox-3");
 		}
 
 		while (true) {
@@ -43,20 +47,50 @@ public class NaiveBot {
 	private void playGame(GameSetup gameSetup, TanksClient client) {
 		boolean gameFinished = false;
 
-		TurnResult result = client.submitMove(generateCommand());
+		TurnResult result = client.submitMove(generateRandomFireCommand());
+		double currentPosition = getTankPosition(result);
 
-		for (Tank tank : result.tanks) {
-			if ("triplekill".equals(tank.name)) {
-				double x = tank.position.x;
-				client.submitMove(Command.move(-470d - x));
+		boolean tankOnEdge = false;
+		while (!tankOnEdge) {
+			result = client.submitMove(Command.move(-480d - currentPosition));
+			currentPosition = getTankPosition(result);
+			if (-500 - currentPosition < 30) {
+				tankOnEdge = true;
 			}
 		}
 
+		Command command = generateCommand();
 		while (!gameFinished) {
-			result = client.submitMove(generateCommand());
+			Outcome outcome = getOutcome(result);
+			if (!Outcome.HitType.tank_hit.equals(outcome.type) || outcome.targetDestroyed) {
+				command = generateCommand();
+			}
+			result = client.submitMove(command);
 
 			gameFinished = result.last;
 		}
+	}
+
+	private Outcome getOutcome(TurnResult result) {
+		for (Outcome outcome : result.outcome) {
+			if (TRIPLEKILL.equals(outcome.name)) {
+				return outcome;
+			}
+		}
+		return null;
+	}
+
+	private double getTankPosition(TurnResult result) {
+		for (Tank tank : result.tanks) {
+			if (TRIPLEKILL.equals(tank.name)) {
+				return tank.position.x;
+			}
+		}
+		return 0d;
+	}
+
+	public Command generateRandomFireCommand() {
+		return Command.fire(rand.nextInt(180) - 90, rand.nextInt(70) + 30);
 	}
 
 	public Command generateCommand() {
