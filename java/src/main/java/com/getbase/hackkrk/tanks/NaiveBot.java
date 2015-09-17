@@ -18,13 +18,15 @@ public class NaiveBot {
 	private static final Logger log = LoggerFactory.getLogger(NaiveBot.class);
 	private Random rand;
 
+    public double direction;
+
 	public static void main(String... args) throws Exception {
 		new NaiveBot().run(args[0]);
 	}
 
 	public void run(String game) throws Exception {
 		rand = SecureRandom.getInstanceStrong();
-		
+
 		TanksClient client = null;
 
 		if ("master".equals(game)) {
@@ -52,22 +54,18 @@ public class NaiveBot {
 		TurnResult result = client.submitMove(generateRandomFireCommand());
 		double currentPosition = getTankPosition(result);
 
+        direction = currentPosition > 0 ? 1 : -1;
+
 		Command command = null;
 		boolean tankOnEdge = false;
 		while (!tankOnEdge) {
-			double distanceToMove = -480d - currentPosition;
-			log.info("distance to move " +  distanceToMove);
-			if (distanceToMove < -50 ) {
-				distanceToMove = -50;
-			}
-
-			command = Command.move(distanceToMove);
+            command = Command.move(direction * 50);
 			result = client.submitMove(command);
 			currentPosition = getTankPosition(result);
-			if ( currentPosition < -470 ) {
+			if ( currentPosition < -470 || currentPosition > 470 ) {
 				tankOnEdge = true;
 			}
-			
+
 			Outcome outcome = getOutcome(result);
 			if (!Outcome.HitType.tank_hit.equals(outcome.type)
 					|| outcome.targetDestroyed) {
@@ -117,7 +115,7 @@ public class NaiveBot {
 
 	public Command generateCommand() {
 		// if (rand.nextDouble() > 0.85) {
-		return Command.fire(rand.nextInt(40) + 5, rand.nextInt(50) + 50);
+		return Command.fire(rand.nextInt(40) * direction * (-1) + 5, rand.nextInt(50) + 50);
 //		return Command.fire(rand.nextInt(90) - 45, rand.nextInt(70) + 30);
 		// } else {
 		// return Command.move(rand.nextDouble() > 0.5 ? -100 : 100);
