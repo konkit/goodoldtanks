@@ -1,7 +1,7 @@
 package com.getbase.hackkrk.tanks;
 
+import java.security.SecureRandom;
 import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,13 +16,15 @@ import com.getbase.hackkrk.tanks.api.TurnResult;
 public class NaiveBot {
 	private static final String TRIPLEKILL = "triplekill";
 	private static final Logger log = LoggerFactory.getLogger(NaiveBot.class);
-	private Random rand = ThreadLocalRandom.current();
+	private Random rand;
 
 	public static void main(String... args) throws Exception {
 		new NaiveBot().run(args[0]);
 	}
 
 	public void run(String game) throws Exception {
+		rand = SecureRandom.getInstanceStrong();
+		
 		TanksClient client = null;
 
 		if ("master".equals(game)) {
@@ -50,19 +52,37 @@ public class NaiveBot {
 		TurnResult result = client.submitMove(generateRandomFireCommand());
 		double currentPosition = getTankPosition(result);
 
+		Command command = null;
 		boolean tankOnEdge = false;
 		while (!tankOnEdge) {
-			result = client.submitMove(Command.move(-480d - currentPosition));
+			double distanceToMove = -480d - currentPosition;
+			log.info("distance to move " +  distanceToMove);
+			if (distanceToMove < -50 ) {
+				distanceToMove = -50;
+			}
+
+			command = Command.move(distanceToMove);
+			result = client.submitMove(command);
 			currentPosition = getTankPosition(result);
-			if (-500 - currentPosition < 30) {
+			if ( currentPosition < -470 ) {
 				tankOnEdge = true;
 			}
+			
+			Outcome outcome = getOutcome(result);
+			if (!Outcome.HitType.tank_hit.equals(outcome.type)
+					|| outcome.targetDestroyed) {
+				command = generateRandomFireCommand();
+			}
+			result = client.submitMove(command);
+
+			gameFinished = result.last;
 		}
 
-		Command command = generateCommand();
+		 command = generateCommand();
 		while (!gameFinished) {
 			Outcome outcome = getOutcome(result);
-			if (!Outcome.HitType.tank_hit.equals(outcome.type) || outcome.targetDestroyed) {
+			if (!Outcome.HitType.tank_hit.equals(outcome.type)
+					|| outcome.targetDestroyed) {
 				command = generateCommand();
 			}
 			result = client.submitMove(command);
@@ -83,19 +103,22 @@ public class NaiveBot {
 	private double getTankPosition(TurnResult result) {
 		for (Tank tank : result.tanks) {
 			if (TRIPLEKILL.equals(tank.name)) {
-				return tank.position.x;
+				double position = tank.position.x;
+				log.info("Tank position ", position);
+				return position;
 			}
 		}
 		return 0d;
 	}
 
 	public Command generateRandomFireCommand() {
-		return Command.fire(rand.nextInt(180) - 90, rand.nextInt(70) + 30);
+		return Command.fire(rand.nextInt(120) - 60, rand.nextInt(70) + 30);
 	}
 
 	public Command generateCommand() {
 		// if (rand.nextDouble() > 0.85) {
-		return Command.fire(rand.nextInt(80) + 10, rand.nextInt(70) + 30);
+		return Command.fire(rand.nextInt(40) + 5, rand.nextInt(50) + 50);
+//		return Command.fire(rand.nextInt(90) - 45, rand.nextInt(70) + 30);
 		// } else {
 		// return Command.move(rand.nextDouble() > 0.5 ? -100 : 100);
 		// }
