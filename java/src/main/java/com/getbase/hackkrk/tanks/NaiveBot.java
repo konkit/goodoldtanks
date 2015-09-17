@@ -1,49 +1,69 @@
 package com.getbase.hackkrk.tanks;
 
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.getbase.hackkrk.tanks.api.Command;
 import com.getbase.hackkrk.tanks.api.GameSetup;
+import com.getbase.hackkrk.tanks.api.Tank;
 import com.getbase.hackkrk.tanks.api.TanksClient;
 import com.getbase.hackkrk.tanks.api.TurnResult;
 
 public class NaiveBot {
-    private static final Logger log = LoggerFactory.getLogger(NaiveBot.class);
-    private Random rand = new Random();
+	private static final Logger log = LoggerFactory.getLogger(NaiveBot.class);
+	private Random rand = ThreadLocalRandom.current();
 
-    public static void main(String... args) throws Exception {
-        new NaiveBot().run();
-    }
+	public static void main(String... args) throws Exception {
+		new NaiveBot().run(args[0]);
+	}
 
-    public void run() throws Exception {
-        TanksClient client = new TanksClient("http://localhost:9999", "main", "DisinterestedCrimsonGazelleDuck");
+	public void run(String game) throws Exception {
+		TanksClient client = null;
 
-        while (true) {
-            log.info("Waiting for the next game...");
-            GameSetup gameSetup = client.getMyGameSetup();
-            log.info("Playing {}", gameSetup);
+		if ("master".equals(game)) {
+			client = new TanksClient("http://10.12.202.141:9999", "master",
+					"ClementLimeGreenStinkbugGiraffe");
+		} else {
+			client = new TanksClient("http://10.12.202.144:9999", "sandbox-3",
+					"ClementLimeGreenStinkbugGiraffe");
+		}
 
-            playGame(client);
-        }
-    }
+		while (true) {
+			log.info("Waiting for the next game...");
+			GameSetup gameSetup = client.getMyGameSetup();
+			log.info("Playing {}", gameSetup);
 
-    private void playGame(TanksClient client) {
-        boolean gameFinished = false;
-        while (!gameFinished) {
-            TurnResult result = client.submitMove(generateCommand());
+			playGame(gameSetup, client);
+		}
+	}
 
-            gameFinished = result.last;
-        }
-    }
+	private void playGame(GameSetup gameSetup, TanksClient client) {
+		boolean gameFinished = false;
 
-    public Command generateCommand() {
-        if (rand.nextDouble() > 0.2) {
-            return Command.fire(rand.nextInt(90) - 45, rand.nextInt(100) + 30);
-        } else {
-            return Command.move(rand.nextDouble() > 0.5 ? -100 : 100);
-        }
-    }
+		TurnResult result = client.submitMove(generateCommand());
+
+		for (Tank tank : result.tanks) {
+			if ("triplekill".equals(tank.name)) {
+				double x = tank.position.x;
+				client.submitMove(Command.move(-470d - x));
+			}
+		}
+
+		while (!gameFinished) {
+			result = client.submitMove(generateCommand());
+
+			gameFinished = result.last;
+		}
+	}
+
+	public Command generateCommand() {
+		// if (rand.nextDouble() > 0.85) {
+		return Command.fire(rand.nextInt(80) + 10, rand.nextInt(70) + 30);
+		// } else {
+		// return Command.move(rand.nextDouble() > 0.5 ? -100 : 100);
+		// }
+	}
 }
